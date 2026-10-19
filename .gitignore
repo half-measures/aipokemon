@@ -1,0 +1,13 @@
+roms/*
+!roms/.gitkeep
+*.gb
+*.gbc
+*.gba
+*.state
+emu/states/
+emu/.venv/
+harness/runs/
+__pycache__/
+rom/
+*.sav
+runs.db*

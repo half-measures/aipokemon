@@ -1,0 +1,23 @@
+{{define "runs.html"}}{{template "head" "Runs"}}
+<h1>Runs</h1>
+<p class="muted">Newest first. Every step of every run is in the SQLite file, so anything here can also be queried with SQL.</p>
+{{if .Runs}}
+<table>
+  <thead><tr><th>Run</th><th>Started (UTC)</th><th>Agent</th><th>Game</th><th>Seed</th><th>Steps</th></tr></thead>
+  <tbody>
+  {{range .Runs}}
+    <tr>
+      <td><a href="/runs/{{.ID}}">#{{.ID}}</a></td>
+      <td>{{.StartedAt.Format "2006-01-02 15:04:05"}}</td>
+      <td>{{.Agent}}</td>
+      <td>{{.Game}}</td>
+      <td>{{.Seed}}</td>
+      <td>{{.Steps}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p>No runs yet. Start one with <code>go run ./cmd/harness --web :8080</code>.</p>
+{{end}}
+{{template "foot"}}{{end}}

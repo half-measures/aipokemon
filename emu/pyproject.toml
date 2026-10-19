@@ -1,0 +1,6 @@
+[project]
+name = "emu"
+version = "0.1.0"
+description = "PyBoy HTTP server for the AI game harness"
+requires-python = ">=3.11"
+dependencies = ["pyboy>=2.8"]

@@ -1,0 +1,69 @@
+{{define "run.html"}}{{template "head" (printf "Run %d" .Run.ID)}}
+<p><a href="/">All runs</a></p>
+<h1>Run #{{.Run.ID}}: {{.Run.Agent}} playing {{.Run.Game}}</h1>
+<p class="muted">Seed {{.Run.Seed}} · started {{.Run.StartedAt.Format "2006-01-02 15:04:05"}} UTC</p>
+
+{{if .Step}}
+<div class="controls">
+  {{if .Live}}<label><input type="checkbox" id="live" checked> Follow live</label>{{end}}
+  {{template "slider" .Step}}
+</div>
+
+{{if .Live}}
+<!-- Receives one "step" event per step and swaps it into #panel. -->
+<div hx-ext="sse" sse-connect="/runs/{{.Run.ID}}/events" sse-swap="step" hx-target="#panel" hx-swap="innerHTML"></div>
+<script>
+  // Untick "Follow live" to stop live updates and scrub freely.
+  document.body.addEventListener("htmx:sseBeforeMessage", (e) => {
+    if (!document.getElementById("live").checked) e.preventDefault();
+  });
+  document.body.addEventListener("input", (e) => {
+    if (e.target.id === "scrub") document.getElementById("live").checked = false;
+  });
+</script>
+{{end}}
+
+<div id="panel">{{template "panel" .Step}}</div>
+{{else}}
+<p>No steps recorded yet.</p>
+{{end}}
+{{template "foot"}}{{end}}
+
+{{/* The scrub slider. The "live" template repeats it with hx-swap-oob so each live event grows its range. */}}
+{{define "slider"}}
+<input type="range" id="scrub" name="step" min="1" max="{{.Step}}" value="{{.Step}}"
+       hx-get="/runs/{{.RunID}}/panel" hx-trigger="input changed delay:80ms" hx-target="#panel"
+       aria-label="Step">
+{{end}}
+
+{{/* What one live SSE message carries: the panel, plus the slider swapped out of band by its id. */}}
+{{define "live"}}
+{{template "panel" .}}
+<input type="range" id="scrub" name="step" min="1" max="{{.Step}}" value="{{.Step}}"
+       hx-get="/runs/{{.RunID}}/panel" hx-trigger="input changed delay:80ms" hx-target="#panel"
+       aria-label="Step" hx-swap-oob="true">
+{{end}}
+
+{{define "panel"}}
+<div class="viewer">
+  <div>
+    <img class="screen" src="/runs/{{.RunID}}/steps/{{.Step}}/screen.png" alt="Game screen at step {{.Step}}">
+    <p class="muted">Step {{.Step}} · {{.At.Format "15:04:05.000"}} · decided in {{.ThinkMS}} ms</p>
+  </div>
+  <div>
+    <div class="card">
+      <h2>Action</h2>
+      <pre>{{.Tool}}: {{pretty .Tool .Args}}</pre>
+      {{if .Err}}<pre class="err">error: {{.Err}}</pre>{{end}}
+    </div>
+    <div class="card">
+      <h2>Reasoning</h2>
+      <pre>{{if .Reasoning}}{{.Reasoning}}{{else}}(none){{end}}</pre>
+    </div>
+    <div class="card">
+      <h2>What the agent saw</h2>
+      <pre>{{.StateText}}</pre>
+    </div>
+  </div>
+</div>
+{{end}}

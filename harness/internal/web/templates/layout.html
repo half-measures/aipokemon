@@ -1,0 +1,35 @@
+{{define "head"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.}} · AI game harness</title>
+<script src="/static/htmx.min.js"></script>
+<script src="/static/htmx-sse.js"></script>
+<style>
+  :root { --bg:#f6f6f3; --fg:#1c1c1a; --muted:#6b6b66; --line:#dcdcd6; --card:#fff; --accent:#2f6fde; --bad:#c0392b; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161615; --fg:#ecece8; --muted:#9a9a94; --line:#33332f; --card:#1f1f1d; --accent:#6c9cf0; --bad:#e57367; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+  a { color: var(--accent); }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .muted { color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; background: var(--card); }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .viewer { display: grid; grid-template-columns: auto 1fr; gap: 20px; margin-top: 16px; }
+  @media (max-width: 760px) { .viewer { grid-template-columns: 1fr; } }
+  .screen { width: 480px; max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); display:block; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+  pre { margin: 0; white-space: pre-wrap; font: 13px/1.5 ui-monospace, Consolas, monospace; }
+  .err { color: var(--bad); }
+  .controls { display: flex; gap: 16px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  #scrub { flex: 1; min-width: 200px; }
+</style>
+</head>
+<body><main>{{end}}
+
+{{define "foot"}}</main></body></html>{{end}}
