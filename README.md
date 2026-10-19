@@ -109,6 +109,8 @@ go run ./cmd/harness --agent=local --model qwen/qwen3.5-9b --vision --web :8080
 
 `--model` must match the id from step 2. For Ollama, add `--llm-url http://localhost:11434/v1`. Each turn the model gets the decoded state, the screen text, the map and its last 20 actions, and answers by calling a `press` tool with up to 8 buttons. If a model writes JSON instead of calling the tool, the harness accepts that too.
 
+Speed: a 9B model takes several seconds per turn, so the harness skips the model when it can. When only a text box is open (no ▶ cursor), it presses A itself; these steps show as "auto: advance dialog" on the dashboard. Menus, YES/NO prompts and the naming screen still go to the model. Turn this off with `--auto-dialog=false`.
+
 Tip: compare models from the same starting point. Play to a spot with `--play`, press **Z** to save a state (written as `rom/pokemon_red.gb.state`), copy it to `emu/states/starter.state`, then start each run with `--load-state starter`.
 
 ## Layout

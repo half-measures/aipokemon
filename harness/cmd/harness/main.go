@@ -40,6 +40,7 @@ func main() {
 	llmURL := flag.String("llm-url", "http://localhost:1234/v1", "OpenAI-compatible base URL (LM Studio :1234, Ollama :11434)")
 	model := flag.String("model", "qwen/qwen3.5-9b", "model name as the local server lists it at /v1/models")
 	vision := flag.Bool("vision", false, "also send the screenshot (needs a vision model)")
+	think := flag.Bool("think", true, "let the model think before answering; --think=false is faster but may play worse")
 	autoDialog := flag.Bool("auto-dialog", true, "press a automatically when only a text box is open")
 	steps := flag.Int("steps", 1000, "number of steps to run (0 = until Ctrl+C)")
 	seed := flag.Uint64("seed", uint64(time.Now().UnixNano()), "seed for the random agent")
@@ -59,7 +60,7 @@ func main() {
 		emuURL: *emuURL, agentName: *agentName, steps: *steps, seed: *seed,
 		loadState: *loadState, snapEvery: *snapEvery, outDir: *outDir,
 		dbPath: *dbPath, webAddr: *webAddr, delay: *delay, autoDialog: *autoDialog,
-		llm: openaicompat.Config{BaseURL: *llmURL, Model: *model, Vision: *vision, APIKey: os.Getenv("LLM_API_KEY")},
+		llm: openaicompat.Config{BaseURL: *llmURL, Model: *model, Vision: *vision, NoThink: !*think, APIKey: os.Getenv("LLM_API_KEY")},
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("harness stopped", "err", err)
 		os.Exit(1)
@@ -201,7 +202,7 @@ func run(ctx context.Context, cfg config) error {
 		}
 
 		slog.Info("step", "n", step, "agent", brain.Name(), "tool", act.Tool,
-			"args", string(act.Args), "think", thinkTime.Round(time.Millisecond), "err", rec.Err,
+			"args", string(act.Args), "think", thinkTime.Round(time.Millisecond), "tokens", act.Tokens, "err", rec.Err,
 			"map", state.MapName, "x", state.X, "y", state.Y, "battle", state.Battle)
 
 		if cfg.delay > 0 {

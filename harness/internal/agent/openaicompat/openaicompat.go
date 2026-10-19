@@ -16,6 +16,7 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -42,11 +43,17 @@ type Config struct {
 	Model   string
 	APIKey  string // local servers ignore it
 	Vision  bool   // send the screenshot as well as the text state
+	// NoThink asks the server to skip the model's thinking step. llama.cpp
+	// and vLLM honour chat_template_kwargs; LM Studio ignores it for Qwen3.5,
+	// so there the prompt template has to be edited instead (see README).
+	NoThink bool
 }
 
 type Agent struct {
 	cfg Config
 	hc  *http.Client
+
+	warnedThinking bool
 }
 
 func New(cfg Config) *Agent {
@@ -90,20 +97,27 @@ type (
 		Tools       []tool    `json:"tools"`
 		Temperature float64   `json:"temperature"`
 		MaxTokens   int       `json:"max_tokens"`
+		// ChatTemplateKwargs reach the model's chat template; Qwen reads enable_thinking.
+		ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
+	}
+	toolCall struct {
+		Function struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"` // a JSON string, not an object
+		} `json:"function"`
 	}
 	response struct {
 		Choices []struct {
 			Message struct {
-				Content          string `json:"content"`
-				ReasoningContent string `json:"reasoning_content"` // thinking models, on some servers
-				ToolCalls        []struct {
-					Function struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"` // a JSON string, not an object
-					} `json:"function"`
-				} `json:"tool_calls"`
+				Content          string     `json:"content"`
+				ReasoningContent string     `json:"reasoning_content"` // thinking models, on some servers
+				Reasoning        string     `json:"reasoning"`         // the same, on others
+				ToolCalls        []toolCall `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage struct {
+			CompletionTokens int `json:"completion_tokens"`
+		} `json:"usage"`
 		Error *struct {
 			Message string `json:"message"`
 		} `json:"error"`
@@ -158,6 +172,9 @@ func (a *Agent) Decide(ctx context.Context, obs agent.Observation) (agent.Action
 		Temperature: 0.4,
 		MaxTokens:   2048, // room for thinking models to think before the call
 	}
+	if a.cfg.NoThink {
+		req.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
+	}
 	resp, err := a.post(ctx, req)
 	if err != nil {
 		return agent.Action{}, err
@@ -166,18 +183,29 @@ func (a *Agent) Decide(ctx context.Context, obs agent.Observation) (agent.Action
 		return agent.Action{}, errors.New("model returned no choices")
 	}
 	msg := resp.Choices[0].Message
+	if a.cfg.NoThink && !a.warnedThinking && (msg.ReasoningContent != "" || msg.Reasoning != "" || strings.Contains(msg.Content, "</think>")) {
+		a.warnedThinking = true
+		slog.Warn("thinking is still on: the model server ignored the request to turn it off. " +
+			"In LM Studio, add {%- set enable_thinking = false %} as the first line of the model's Prompt Template and reload it.")
+	}
 
+	act, err := a.parse(msg.Content, msg.ToolCalls)
+	act.Tokens = resp.Usage.CompletionTokens
+	return act, err
+}
+
+func (a *Agent) parse(content string, calls []toolCall) (agent.Action, error) {
 	// Preferred path: a native tool call.
-	for _, tc := range msg.ToolCalls {
+	for _, tc := range calls {
 		if tc.Function.Name == "press" {
-			return toAction(tc.Function.Arguments, msg.Content)
+			return toAction(tc.Function.Arguments, content)
 		}
 	}
 	// Fallback: small models often write the JSON in plain text instead.
-	if js := lastJSONObject(msg.Content); js != "" {
-		return toAction(js, msg.Content)
+	if js := lastJSONObject(content); js != "" {
+		return toAction(js, content)
 	}
-	return agent.Action{}, fmt.Errorf("model did not call press; it said: %.200q", msg.Content)
+	return agent.Action{}, fmt.Errorf("model did not call press; it said: %.200q", content)
 }
 
 func userText(obs agent.Observation) string {

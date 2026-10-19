@@ -97,3 +97,25 @@ func TestServerError(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestNoThink(t *testing.T) {
+	reply := `{"choices":[{"message":{"content":"{\"buttons\":[\"a\"]}"}}],"usage":{"completion_tokens":17}}`
+	for _, noThink := range []bool{false, true} {
+		srv, sent := fakeServer(t, reply)
+		a := New(Config{BaseURL: srv.URL + "/v1", Model: "m", NoThink: noThink})
+		act, err := a.Decide(context.Background(), agent.Observation{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if act.Tokens != 17 {
+			t.Errorf("tokens = %d, want 17", act.Tokens)
+		}
+		kw, ok := (*sent)["chat_template_kwargs"].(map[string]any)
+		if noThink && (!ok || kw["enable_thinking"] != false) {
+			t.Errorf("NoThink: chat_template_kwargs = %v", (*sent)["chat_template_kwargs"])
+		}
+		if !noThink && ok {
+			t.Errorf("thinking on should not send chat_template_kwargs, got %v", kw)
+		}
+	}
+}

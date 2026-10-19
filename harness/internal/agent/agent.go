@@ -23,6 +23,7 @@ type Action struct {
 	Tool      string          `json:"tool"` // "press" for now; "navigate_to", "write_note" later
 	Args      json.RawMessage `json:"args"`
 	Reasoning string          `json:"reasoning"`
+	Tokens    int             `json:"tokens,omitempty"` // tokens the model generated for this action, thinking included
 }
 
 type StepRecord struct {
