@@ -3,6 +3,7 @@ package pokered
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"harness/internal/emulator"
@@ -26,6 +27,10 @@ const (
 type Screen struct {
 	Text string `json:"text,omitempty"` // dialog and menu text, empty when none is open
 	Map  string `json:"map"`            // 9x10 grid of 16x16 walk squares around the player
+	// DialogOnly is true when the bottom text box is open and no menu cursor
+	// (▶) is anywhere on screen: the only sensible input is a, so the harness
+	// can press it without asking the model.
+	DialogOnly bool `json:"dialog_only"`
 }
 
 // charmap covers the font tiles (0x79 and up) from pret/pokered's
@@ -79,7 +84,26 @@ func readScreen(ctx context.Context, emu emulator.Emulator, low, hiBlock []byte)
 // decodeScreen is pure, like Decode. low covers wSpriteStateData1..wTileMap end.
 func decodeScreen(low []byte, walkable map[byte]bool) Screen {
 	tiles := low[wTileMap-lowStart:]
-	return Screen{Text: screenText(tiles), Map: walkGrid(tiles, low[:wTileMap-lowStart], walkable)}
+	return Screen{
+		Text:       screenText(tiles),
+		Map:        walkGrid(tiles, low[:wTileMap-lowStart], walkable),
+		DialogOnly: dialogOnly(tiles),
+	}
+}
+
+const (
+	tileBoxTopLeft    = 0x79 // ┌
+	tileBoxBottomLeft = 0x7D // └
+	tileCursor        = 0xED // ▶
+)
+
+// dialogOnly: the standard text box spans rows 12-17, so its corners sit at
+// (row 12, col 0) and (row 17, col 0).
+func dialogOnly(tiles []byte) bool {
+	if tiles[12*screenW] != tileBoxTopLeft || tiles[17*screenW] != tileBoxBottomLeft {
+		return false
+	}
+	return !slices.Contains(tiles, tileCursor)
 }
 
 // screenText decodes every row that contains font characters. Map graphics

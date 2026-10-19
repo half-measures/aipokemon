@@ -34,7 +34,8 @@ Tips:
 - If on-screen text is showing, press a to advance it.
 - On the map, @ is you, N is a person or object, . is walkable, # is blocked. Up is north. Doors and stairs usually show as # until you step onto them; walk into them.
 - If your position has not changed for several turns, you are stuck: try a different direction or press b.
-- Press a few buttons per turn when the path is clear, one at a time when reading menus.`
+- Batch your moves: when the map shows a clear path, send all of them in one call, e.g. ["down","down","down","left","left"] (up to 8). Use single presses only in menus.
+- Keep reasoning to one short sentence. Think briefly; every turn costs time.`
 
 type Config struct {
 	BaseURL string // e.g. http://localhost:1234/v1 (LM Studio) or http://localhost:11434/v1 (Ollama)

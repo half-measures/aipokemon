@@ -29,14 +29,18 @@ import (
 	"harness/internal/web"
 )
 
-const recentWindow = 20
+const (
+	recentWindow    = 20
+	maxDecideErrors = 5
+)
 
 func main() {
 	emuURL := flag.String("emu", "http://127.0.0.1:8765", "emulator server URL")
 	agentName := flag.String("agent", "random", "brain to use: random, local")
 	llmURL := flag.String("llm-url", "http://localhost:1234/v1", "OpenAI-compatible base URL (LM Studio :1234, Ollama :11434)")
-	model := flag.String("model", "qwen3.5-9b", "model name as the local server lists it at /v1/models")
+	model := flag.String("model", "qwen/qwen3.5-9b", "model name as the local server lists it at /v1/models")
 	vision := flag.Bool("vision", false, "also send the screenshot (needs a vision model)")
+	autoDialog := flag.Bool("auto-dialog", true, "press a automatically when only a text box is open")
 	steps := flag.Int("steps", 1000, "number of steps to run (0 = until Ctrl+C)")
 	seed := flag.Uint64("seed", uint64(time.Now().UnixNano()), "seed for the random agent")
 	loadState := flag.String("load-state", "", "save-state slot to start from")
@@ -54,7 +58,7 @@ func main() {
 	if err := run(ctx, config{
 		emuURL: *emuURL, agentName: *agentName, steps: *steps, seed: *seed,
 		loadState: *loadState, snapEvery: *snapEvery, outDir: *outDir,
-		dbPath: *dbPath, webAddr: *webAddr, delay: *delay,
+		dbPath: *dbPath, webAddr: *webAddr, delay: *delay, autoDialog: *autoDialog,
 		llm: openaicompat.Config{BaseURL: *llmURL, Model: *model, Vision: *vision, APIKey: os.Getenv("LLM_API_KEY")},
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("harness stopped", "err", err)
@@ -68,6 +72,7 @@ type config struct {
 	seed                                                  uint64
 	delay                                                 time.Duration
 	llm                                                   openaicompat.Config
+	autoDialog                                            bool
 }
 
 func run(ctx context.Context, cfg config) error {
@@ -124,6 +129,7 @@ func run(ctx context.Context, cfg config) error {
 	}
 
 	var recent []agent.StepRecord
+	decideErrors := 0
 	for step := 1; cfg.steps == 0 || step <= cfg.steps; step++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -140,17 +146,35 @@ func run(ctx context.Context, cfg config) error {
 		}
 		obs := agent.Observation{Step: step, Screen: screen, State: state, StateText: state.Summary(), Recent: recent}
 
-		// Decide.
+		// Decide. Plain dialog only ever needs a, so the harness answers that
+		// itself instead of spending a model call on it.
 		start := time.Now()
-		act, err := brain.Decide(ctx, obs)
-		if err != nil {
-			return fmt.Errorf("step %d: decide: %w", step, err)
+		var act agent.Action
+		if cfg.autoDialog && state.Screen.DialogOnly {
+			act = agent.Action{Tool: "press", Args: json.RawMessage(`{"buttons":["a"]}`), Reasoning: "auto: advance dialog"}
+		} else {
+			act, err = brain.Decide(ctx, obs)
 		}
 		thinkTime := time.Since(start)
+		if err != nil {
+			// Models fail now and then (bad output, a timeout). Log it, show it
+			// to the model next step, and only give up if it keeps happening.
+			decideErrors++
+			slog.Warn("decide failed", "step", step, "err", err, "in_a_row", decideErrors)
+			if decideErrors >= maxDecideErrors {
+				return fmt.Errorf("step %d: %d decide errors in a row, last: %w", step, decideErrors, err)
+			}
+			act = agent.Action{Tool: "none", Args: json.RawMessage(`{}`), Reasoning: "decide failed: " + err.Error()}
+		} else {
+			decideErrors = 0
+		}
 
 		// Act. A bad action is recorded and shown to the brain next step,
 		// not fatal: models make mistakes and should see them.
 		rec := agent.StepRecord{Step: step, Action: act}
+		if act.Tool == "none" {
+			rec.Err = act.Reasoning
+		}
 		if err := execute(ctx, emu, act); err != nil {
 			rec.Err = err.Error()
 		}
@@ -217,6 +241,8 @@ func newAgent(cfg config) (agent.Agent, error) {
 // Pokemon game adapter in milestone 4, once there are game-specific tools.
 func execute(ctx context.Context, emu emulator.Emulator, act agent.Action) error {
 	switch act.Tool {
+	case "none":
+		return nil
 	case "press":
 		var a agent.PressArgs
 		if err := json.Unmarshal(act.Args, &a); err != nil {
