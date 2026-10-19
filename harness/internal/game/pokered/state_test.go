@@ -15,7 +15,8 @@ func newBlock() ([]byte, func(addr int, v ...byte)) {
 
 func TestDecodeStartingTown(t *testing.T) {
 	block, set := newBlock()
-	set(wCurMap, 0x00) // Pallet Town
+	set(wPlayerName, 0x91, 0x84, 0x83, 0x50) // "RED" + terminator
+	set(wCurMap, 0x00)                       // Pallet Town
 	set(wXCoord, 5)
 	set(wYCoord, 6)
 	set(wPlayerMoney, 0x00, 0x30, 0x00)
@@ -30,6 +31,9 @@ func TestDecodeStartingTown(t *testing.T) {
 	s, err := Decode(block, 0x4)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !s.InGame {
+		t.Error("in_game = false with a player name set")
 	}
 	if s.MapName != "Pallet Town" || s.X != 5 || s.Y != 6 || s.Facing != "up" {
 		t.Errorf("position = %q (%d,%d) %s", s.MapName, s.X, s.Y, s.Facing)
@@ -119,5 +123,16 @@ func TestWalkGrid(t *testing.T) {
 	}
 	if blocked := walkGrid(tiles, sprites, map[byte]bool{}); !strings.HasPrefix(blocked, "##########") {
 		t.Errorf("unwalkable grid =\n%s", blocked)
+	}
+}
+
+func TestNotInGameSummary(t *testing.T) {
+	block, _ := newBlock() // fresh RAM: no player name
+	s, err := Decode(block, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.InGame || !strings.Contains(s.Summary(), "has not started") || strings.Contains(s.Summary(), "Map:") {
+		t.Errorf("in_game = %v, summary =\n%s", s.InGame, s.Summary())
 	}
 }

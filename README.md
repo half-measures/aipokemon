@@ -10,13 +10,13 @@ Status: milestones 1 to 5 (emulator, emulator server, Go loop with a random agen
 ## Setup (Windows 11, PowerShell)
 
 1. Install [uv](https://docs.astral.sh/uv/) (`winget install astral-sh.uv`) and Go 1.24+ (`winget install GoLang.Go`).
-2. Put your Pokemon Red ROM at `rom\pokemon_red.gb`. ROMs are gitignored and never committed.
+2. Put your Pokemon Red ROM at `rom/pokemon_red.gb`. ROMs are gitignored and never committed.
 
 ## Milestone 1: play it yourself
 
 ```powershell
 cd emu
-uv run server.py --rom ..\rom\pokemon_red.gb --play
+uv run server.py --rom ../rom/pokemon_red.gb --play
 ```
 
 Arrows move, A key = A, S key = B, Enter = Start, Backspace = Select. Done when you can walk out of your house.
@@ -25,7 +25,7 @@ Arrows move, A key = A, S key = B, Enter = Start, Backspace = Select. Done when 
 
 ```powershell
 cd emu
-uv run server.py --rom ..\rom\pokemon_red.gb
+uv run server.py --rom ../rom/pokemon_red.gb
 ```
 
 In a second terminal (`curl.exe`, not PowerShell's `curl` alias):
@@ -37,7 +37,7 @@ curl.exe -o screen.png http://127.0.0.1:8765/screen.png
 curl.exe "http://127.0.0.1:8765/mem?addr=0xD35E&len=1" -o map.bin
 ```
 
-The `\"` escaping is for Windows PowerShell 5.1. On PowerShell 7.3 or newer, use plain quotes: `-d '{"buttons":["a"]}'`.
+The `\"` escaping is for Windows PowerShell 5.1. In Git Bash or PowerShell 7.3+, use plain quotes: `-d '{"buttons":["a"]}'`.
 
 | Endpoint | Does |
 | --- | --- |
@@ -58,7 +58,7 @@ cd harness
 go run ./cmd/harness --agent=random --steps=1000 --snap-every=100
 ```
 
-Screenshots land in `harness\runs\<timestamp>\`. Useful flags: `--load-state <slot>`, `--steps 0` (run until Ctrl+C), `--seed N` (repeat a random run exactly).
+Screenshots land in `harness/runs/<timestamp>/`. Useful flags: `--load-state <slot>`, `--steps 0` (run until Ctrl+C), `--seed N` (repeat a random run exactly).
 
 ## Milestone 4: RAM decoder
 
@@ -102,14 +102,14 @@ The decoder also reads the screen from memory: on-screen dialog and menu text, a
 ```powershell
 cd harness
 # text only
-go run ./cmd/harness --agent=local --model qwen3.5-9b --web :8080
+go run ./cmd/harness --agent=local --model qwen/qwen3.5-9b --web :8080
 # with screenshots
-go run ./cmd/harness --agent=local --model qwen3.5-9b --vision --web :8080
+go run ./cmd/harness --agent=local --model qwen/qwen3.5-9b --vision --web :8080
 ```
 
 `--model` must match the id from step 2. For Ollama, add `--llm-url http://localhost:11434/v1`. Each turn the model gets the decoded state, the screen text, the map and its last 20 actions, and answers by calling a `press` tool with up to 8 buttons. If a model writes JSON instead of calling the tool, the harness accepts that too.
 
-Tip: compare models from the same starting point. Play to a spot with `--play`, press **Z** to save a state (written as `rom\pokemon_red.gb.state`), copy it to `emu\states\starter.state`, then start each run with `--load-state starter`.
+Tip: compare models from the same starting point. Play to a spot with `--play`, press **Z** to save a state (written as `rom/pokemon_red.gb.state`), copy it to `emu/states/starter.state`, then start each run with `--load-state starter`.
 
 ## Layout
 
@@ -126,21 +126,3 @@ harness/cmd/peek, harness/cmd/dash   small helper commands
 ```
 
 Next: milestone 6, the Claude agent.
-
-
-
-# local
-Looks like we load it via lm studio first.
-Make sure we serve the same, lm studio serves 1234 port, change with a flag
-
-2. start the server in lm
-
-3. start emulate with ```cd emu;uv run server.py --rom ..\rom\pokemon_red.gb ```
-
-cd harness
-go run ./cmd/harness --agent=local --model qwen3.5-9b --web :8080
-
---model must match the ID that 
-curl.exe http://localhost:1234/v1/models lists
---vision will allow screenshots too
-

@@ -3,10 +3,11 @@
 <h1>Run #{{.Run.ID}}: {{.Run.Agent}} playing {{.Run.Game}}</h1>
 <p class="muted">Seed {{.Run.Seed}} · started {{.Run.StartedAt.Format "2006-01-02 15:04:05"}} UTC</p>
 
-{{if .Step}}
+{{/* A live run with no steps yet still connects, so the first step appears without a reload. */}}
+{{if or .Step .Live}}
 <div class="controls">
   {{if .Live}}<label><input type="checkbox" id="live" checked> Follow live</label>{{end}}
-  {{template "slider" .Step}}
+  {{if .Step}}{{template "slider" .Step}}{{else}}<input type="range" id="scrub" disabled aria-label="Step">{{end}}
 </div>
 
 {{if .Live}}
@@ -23,7 +24,7 @@
 </script>
 {{end}}
 
-<div id="panel">{{template "panel" .Step}}</div>
+<div id="panel">{{if .Step}}{{template "panel" .Step}}{{else}}<p class="muted">Waiting for the first step. A local model can take a while to answer.</p>{{end}}</div>
 {{else}}
 <p>No steps recorded yet.</p>
 {{end}}
