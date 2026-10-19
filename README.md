@@ -91,6 +91,26 @@ Because it is just SQLite, questions about runs are SQL:
 SELECT map_name, COUNT(*) FROM steps WHERE run_id = 1 GROUP BY map_name ORDER BY 2 DESC;
 ```
 
+## Local model (LM Studio or Ollama)
+
+The decoder also reads the screen from memory: on-screen dialog and menu text, and a 9x10 map of walkable squares around the player (`@` you, `N` person, `.` walkable, `#` blocked). That means a text-only model can play, with screenshots optional.
+
+1. In LM Studio, download **Qwen3.5 9B** (Q4_K_M), load it fully on the GPU, then turn on the server in the Developer tab.
+2. Check it: `curl.exe http://localhost:1234/v1/models`, and note the model id it lists.
+3. Start the emulator server, then:
+
+```powershell
+cd harness
+# text only
+go run ./cmd/harness --agent=local --model qwen3.5-9b --web :8080
+# with screenshots
+go run ./cmd/harness --agent=local --model qwen3.5-9b --vision --web :8080
+```
+
+`--model` must match the id from step 2. For Ollama, add `--llm-url http://localhost:11434/v1`. Each turn the model gets the decoded state, the screen text, the map and its last 20 actions, and answers by calling a `press` tool with up to 8 buttons. If a model writes JSON instead of calling the tool, the harness accepts that too.
+
+Tip: compare models from the same starting point. Play to a spot with `--play`, press **Z** to save a state (written as `rom\pokemon_red.gb.state`), copy it to `emu\states\starter.state`, then start each run with `--load-state starter`.
+
 ## Layout
 
 ```text
@@ -106,3 +126,21 @@ harness/cmd/peek, harness/cmd/dash   small helper commands
 ```
 
 Next: milestone 6, the Claude agent.
+
+
+
+# local
+Looks like we load it via lm studio first.
+Make sure we serve the same, lm studio serves 1234 port, change with a flag
+
+2. start the server in lm
+
+3. start emulate with ```cd emu;uv run server.py --rom ..\rom\pokemon_red.gb ```
+
+cd harness
+go run ./cmd/harness --agent=local --model qwen3.5-9b --web :8080
+
+--model must match the ID that 
+curl.exe http://localhost:1234/v1/models lists
+--vision will allow screenshots too
+

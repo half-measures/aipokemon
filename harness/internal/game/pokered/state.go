@@ -17,7 +17,7 @@ import (
 // block-relative.
 const (
 	blockStart = 0xCF00
-	blockEnd   = 0xD400 // exclusive
+	blockEnd   = 0xD600 // exclusive
 
 	wEnemyMonSpecies = 0xCFE5
 	wEnemyMonHP      = 0xCFE6 // 2 bytes, big-endian
@@ -38,7 +38,7 @@ const (
 	wYCoord          = 0xD361
 	wXCoord          = 0xD362
 
-	// Outside the block, read separately.
+	// In the low block (see screen.go).
 	wSpritePlayerStateData1FacingDirection = 0xC109
 )
 
@@ -63,6 +63,7 @@ type State struct {
 	DexOwned int      `json:"dex_owned"`
 	Party    []Mon    `json:"party"`
 	Enemy    *Mon     `json:"enemy,omitempty"` // only in battle
+	Screen   Screen   `json:"screen"`
 }
 
 // Read fetches the RAM the decoder needs and decodes it.
@@ -71,11 +72,16 @@ func Read(ctx context.Context, emu emulator.Emulator) (State, error) {
 	if err != nil {
 		return State{}, fmt.Errorf("read wram: %w", err)
 	}
-	facing, err := emu.ReadMem(ctx, wSpritePlayerStateData1FacingDirection, 1)
+	low, err := emu.ReadMem(ctx, lowStart, lowEnd-lowStart)
 	if err != nil {
-		return State{}, fmt.Errorf("read facing: %w", err)
+		return State{}, fmt.Errorf("read sprites and tile map: %w", err)
 	}
-	return Decode(block, facing[0])
+	s, err := Decode(block, low[wSpritePlayerStateData1FacingDirection-lowStart])
+	if err != nil {
+		return s, err
+	}
+	s.Screen, err = readScreen(ctx, emu, low, block)
+	return s, err
 }
 
 // Decode is pure: bytes in, State out. That makes it testable without an
@@ -153,6 +159,12 @@ func (s State) Summary() string {
 		sb.WriteString("Battle: none\n")
 	}
 	fmt.Fprintf(&sb, "Badges: %d %v | Money: $%d | Pokedex owned: %d", len(s.Badges), s.Badges, s.Money, s.DexOwned)
+	if s.Screen.Text != "" {
+		fmt.Fprintf(&sb, "\nOn-screen text:\n%s", s.Screen.Text)
+	}
+	if s.Screen.Map != "" {
+		fmt.Fprintf(&sb, "\nMap around you (@ you, N person, . walkable, # blocked; up is north):\n%s", s.Screen.Map)
+	}
 	return sb.String()
 }
 

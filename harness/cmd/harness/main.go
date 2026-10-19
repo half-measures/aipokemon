@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"harness/internal/agent"
+	"harness/internal/agent/openaicompat"
 	"harness/internal/agent/random"
 	"harness/internal/emulator"
 	"harness/internal/game/pokered"
@@ -31,7 +33,10 @@ const recentWindow = 20
 
 func main() {
 	emuURL := flag.String("emu", "http://127.0.0.1:8765", "emulator server URL")
-	agentName := flag.String("agent", "random", "brain to use: random")
+	agentName := flag.String("agent", "random", "brain to use: random, local")
+	llmURL := flag.String("llm-url", "http://localhost:1234/v1", "OpenAI-compatible base URL (LM Studio :1234, Ollama :11434)")
+	model := flag.String("model", "qwen3.5-9b", "model name as the local server lists it at /v1/models")
+	vision := flag.Bool("vision", false, "also send the screenshot (needs a vision model)")
 	steps := flag.Int("steps", 1000, "number of steps to run (0 = until Ctrl+C)")
 	seed := flag.Uint64("seed", uint64(time.Now().UnixNano()), "seed for the random agent")
 	loadState := flag.String("load-state", "", "save-state slot to start from")
@@ -50,6 +55,7 @@ func main() {
 		emuURL: *emuURL, agentName: *agentName, steps: *steps, seed: *seed,
 		loadState: *loadState, snapEvery: *snapEvery, outDir: *outDir,
 		dbPath: *dbPath, webAddr: *webAddr, delay: *delay,
+		llm: openaicompat.Config{BaseURL: *llmURL, Model: *model, Vision: *vision, APIKey: os.Getenv("LLM_API_KEY")},
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("harness stopped", "err", err)
 		os.Exit(1)
@@ -61,6 +67,7 @@ type config struct {
 	steps, snapEvery                                      int
 	seed                                                  uint64
 	delay                                                 time.Duration
+	llm                                                   openaicompat.Config
 }
 
 func run(ctx context.Context, cfg config) error {
@@ -199,6 +206,8 @@ func newAgent(cfg config) (agent.Agent, error) {
 	switch cfg.agentName {
 	case "random":
 		return random.New(cfg.seed), nil
+	case "local":
+		return openaicompat.New(cfg.llm), nil
 	default:
 		return nil, fmt.Errorf("unknown agent %q", cfg.agentName)
 	}
@@ -213,7 +222,13 @@ func execute(ctx context.Context, emu emulator.Emulator, act agent.Action) error
 		if err := json.Unmarshal(act.Args, &a); err != nil {
 			return fmt.Errorf("press: bad args: %w", err)
 		}
-		return emu.Press(ctx, emulator.Input{Buttons: a.Buttons, Hold: a.Hold, Wait: a.Wait})
+		hold, wait := cmp.Or(a.Hold, 8), cmp.Or(a.Wait, 16)
+		for _, b := range a.Buttons {
+			if err := emu.Press(ctx, emulator.Input{Buttons: []string{b}, Hold: hold, Wait: wait}); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown tool %q", act.Tool)
 	}

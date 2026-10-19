@@ -2,6 +2,7 @@ package pokered
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -92,5 +93,31 @@ func TestBCD(t *testing.T) {
 		if got := bcd(tc.in...); got != tc.want {
 			t.Errorf("bcd(% X) = %d, want %d", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestScreenText(t *testing.T) {
+	tiles := make([]byte, screenW*screenH)
+	// Row 14: "│Hi RED!│" inside a box, the rest map graphics (0x00).
+	copy(tiles[14*screenW:], []byte{0x7C, 0x87, 0xA8, 0x7F, 0x91, 0x84, 0x83, 0xE7, 0x7C})
+	if got, want := screenText(tiles), "│Hi RED!│"; got != want {
+		t.Errorf("screenText = %q, want %q", got, want)
+	}
+}
+
+func TestWalkGrid(t *testing.T) {
+	tiles := make([]byte, screenW*screenH) // all tile 0x00
+	sprites := make([]byte, 16*16)
+	// Player sprite at the fixed on-screen position (x=64, y=60): block (4,4).
+	copy(sprites[0:], []byte{1, 0, 0, 0, 60, 0, 64})
+	// An NPC one block to the right.
+	copy(sprites[16:], []byte{5, 0, 0, 0, 60, 0, 80})
+	grid := walkGrid(tiles, sprites, map[byte]bool{0x00: true})
+	rows := strings.Split(grid, "\n")
+	if len(rows) != 9 || rows[4] != "....@N...." {
+		t.Errorf("grid =\n%s", grid)
+	}
+	if blocked := walkGrid(tiles, sprites, map[byte]bool{}); !strings.HasPrefix(blocked, "##########") {
+		t.Errorf("unwalkable grid =\n%s", blocked)
 	}
 }

@@ -36,9 +36,10 @@ type Agent interface {
 	Decide(ctx context.Context, obs Observation) (Action, error)
 }
 
-// PressArgs are the arguments of the "press" tool.
+// PressArgs are the arguments of the "press" tool. Buttons are pressed one
+// after another; Hold and Wait (frames) default to 8 and 16 when zero.
 type PressArgs struct {
 	Buttons []string `json:"buttons"`
-	Hold    int      `json:"hold"`
-	Wait    int      `json:"wait"`
+	Hold    int      `json:"hold,omitempty"`
+	Wait    int      `json:"wait,omitempty"`
 }
